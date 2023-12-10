@@ -2,10 +2,12 @@ import re
 import os
 
 FOLDER = "cases"
+OUTPUT = "result"
 
 import json
 import pandas as pd
 from dataclasses import dataclass
+import threading
 
 def subtract_df(df_original, df_subset):
     # Слияние двух DataFrame с помощью внешнего слияния (outer join) и индикатора
@@ -69,21 +71,42 @@ def parse_filename(name: str) -> Data:
 with open("config.json", "r", encoding="utf-8") as f:
     c = json.loads(f.read())
 
-def run(case):
+def read_df(c, result):
     df_orig = pd.read_excel(c["filename"], header=c["header_index"])
 
     col_len = len(df_orig.columns)
     if  col_len > c["col_len"]:
         df_orig = df_orig.iloc[:, :c["col_len"]-col_len]
+    result.append(df_orig)
 
-    all_case_dfs = list()
-    case_dfs = dict()
+result = []
+threading.Thread(target=read_df, args=(c,result)).start()
+
+all_case_dfs = list()
+
+
+def save_rest_df():
+    global all_case_dfs, result
+    if not result:
+        return 
+
+    subtract_df(result[0], pd.concat(all_case_dfs)).to_excel("not_measured.xlsx", index=False)
+
+
+def run(case):
+    global result, all_case_dfs
+
+    if not result:
+        return None, None, None
+
+    df_orig = result[0]
+
+    case = case.replace(f"{FOLDER}/", "")
 
     case_path = os.path.join(FOLDER, case)
-    res = 0
-    
-    case_dfs[case] = list()
-    
+    sum_all = 0
+    sum_after = 0
+
     if os.path.isfile(case_path):
         with open(case_path, "r", encoding="utf-8") as f:
             conditions = f.read()
@@ -92,10 +115,9 @@ def run(case):
         df = eval(code_output)
 
         all_case_dfs.append(df)
-        case_dfs[case].append(df)
 
-        res += calc_sum(df) * (data.per/100)
-        print(round(res, 2), data.name)
+        sum_all += calc_sum(df)
+        sum_after += sum_all * (data.per/100)
     else:
         for subcase in os.listdir(case_path):
             r = 0
@@ -105,18 +127,23 @@ def run(case):
             df = eval(code_output)
 
             all_case_dfs.append(df)
-            case_dfs[case].append(df)
 
             data = parse_filename(subcase)
-            r = calc_sum(df) * (data.per/100)
+            r = calc_sum(df)
+            sum_all += r
 
-            res += r
+            r *= (data.per/100)
+            sum_after += r
         data.name = case
 
-        print(round(res, 2), data.name)
+    res_df = pd.concat(all_case_dfs)
 
-    #TODO сохранить всё в файл
-    #TODO если стоит галка, то сохранить оставшиеся строки
+    if not os.path.exists(OUTPUT):
+        os.mkdir(OUTPUT)
+
+    res_df.to_excel(os.path.join(OUTPUT, f"{case}.xlsx", ), index=False)
+
+    return len(res_df), round(sum_all, 2), round(sum_after, 2)
 
 
 # df = df_orig[df_orig["Копирайт"] == "Pancher Label / SOEXC3LLENT"]

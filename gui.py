@@ -1,6 +1,18 @@
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QListWidget, QPushButton, QCheckBox
+from PyQt5.QtWidgets import (
+    QApplication,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QTableWidget,
+    QTableWidgetItem,
+    QPushButton,
+    QCheckBox,
+    QMessageBox,
+)
+from PyQt5.QtCore import QTimer
+import json
 
-from main import run
+from main import run, FOLDER, result, save_rest_df
 
 class CheckWindow(QWidget):
     def __init__(self, case):
@@ -9,7 +21,7 @@ class CheckWindow(QWidget):
 
     def initUI(self, case):
         self.setWindowTitle(f"Проверка {case}")
-        self.setGeometry(100, 100, 200, 100)
+        self.setGeometry(100, 100, 400, 300)
         layout = QVBoxLayout()
         self.setLayout(layout)
         layout.addWidget(QPushButton("Кнопка"))
@@ -18,69 +30,81 @@ class CheckWindow(QWidget):
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
+        
+        with open("config.json", "r", encoding="utf-8") as f:
+            config = json.loads(f.read())
 
         self.check_windows = []
-        self.resize(1000, 800)
-        # Создание списка
-        self.list_widget_flat = QListWidget()
+        self.resize(1200, 800)
+        # имя контрагента, кол-во строк в екселе, сумма до процента, сумма после процента
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(["Путь к вычислениям", "Количество строк", "Сумма поступлений", "Сумма выплат"])
 
-        self.list_widget_flat.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
-        # Добавление элементов в список
-        
         from pathlib import Path
 
-        folder_path = Path("cases")
+        folder_path = Path(FOLDER)
 
         all_files = [file for file in folder_path.glob("*")]
 
         for file in all_files:
             if file.is_file() and file.suffix == ".txt":
-                self.list_widget_flat.addItem(str(file))
-        
+                self.addRow(str(file))
+
         for file in all_files:
             if file.is_dir():
-                self.list_widget_flat.addItem(str(file))
+                self.addRow(str(file))
+
+        self.table.resizeColumnsToContents()
 
         self.evaluate_cases = QPushButton("Рассчитать")
         self.evaluate_cases.clicked.connect(self.on_evaluate_cases_clicked)
-        
-        self.check_cases = QPushButton("Проверить рассчеты")
-        self.check_cases.clicked.connect(self.on_check_cases_clicked)
-        
-        checkbox = QCheckBox("Создать файл с необработанными строками")
+
+        self.checkbox = QCheckBox("Создать файл с необработанными строками")
 
         layout_v = QVBoxLayout()
         layout_v.addWidget(self.evaluate_cases)
-        layout_v.addWidget(self.check_cases)
-        layout_v.addWidget(checkbox)
-        
+        layout_v.addWidget(self.checkbox)
+
         layout_h = QHBoxLayout()
-        layout_h.addWidget(self.list_widget_flat)
+        layout_h.addWidget(self.table)
         layout_h.addLayout(layout_v)
 
         self.setLayout(layout_h)
 
     def on_evaluate_cases_clicked(self):
-        selected_items = self.list_widget_flat.selectedItems()
-        selected_texts = [item.text() for item in selected_items]
-        print("Выбранные элементы:", selected_texts)
+        def eval_row(text, row_num):
+            row_count, sum_all, sum_after = run(text)
+            if all(k is not None for k in [row_count, sum_all, sum_after]):
+                self.table.setItem(row_num, 1, QTableWidgetItem(f"{row_count}"))
+                self.table.setItem(row_num, 2, QTableWidgetItem(f"{sum_all}"))
+                self.table.setItem(row_num, 3, QTableWidgetItem(f"{sum_after}"))
+            else:
+                QMessageBox.information(self, 'Информация', 'Файл еще не загружен')
+                return 1
 
-    def on_check_cases_clicked(self):
-        selected_items = self.list_widget_flat.selectedItems()
-        selected_texts = [item.text() for item in selected_items]
-        for text in selected_texts:
-            c = CheckWindow(text)
-            c.show()
-            self.check_windows.append(c)
+        if self.table.selectedItems():
+            for item in self.table.selectedItems():
+                if eval_row(item.text(), item.row()):
+                    break
+        else:
+            for i in range(self.table.rowCount()):
+                if eval_row(self.table.item(i, 0).text(), i):
+                    break
 
+        if self.checkbox.isChecked():
+            save_rest_df()
 
+    def addRow(self, case):
+        rowCount = self.table.rowCount()
+        self.table.insertRow(rowCount)
+        self.table.setItem(rowCount, 0, QTableWidgetItem(f"{case}"))
+        self.table.setItem(rowCount, 1, QTableWidgetItem(f"x"))
+        self.table.setItem(rowCount, 2, QTableWidgetItem(f"x"))
+        self.table.setItem(rowCount, 3, QTableWidgetItem(f"x"))
 
-# Создание приложения
 app = QApplication([])
 
-# Создание и отображение окна
 window = MainWindow()
 window.show()
 
-# Запуск приложения
 app.exec()
