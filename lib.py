@@ -101,7 +101,7 @@ def run(case):
 
     df_orig = result[0]
 
-    case = case.replace(f"{FOLDER}/", "")
+    case = case.replace(f"{FOLDER}{os.path.sep}", "")
 
     case_path = os.path.join(FOLDER, case)
     sum_all = 0

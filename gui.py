@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import QTimer
 import json
 
-from main import run, FOLDER, result, save_rest_df
+from lib import run, FOLDER, result, save_rest_df
 
 class CheckWindow(QWidget):
     def __init__(self, case):
