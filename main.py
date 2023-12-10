@@ -115,6 +115,9 @@ def run(case):
 
         print(round(res, 2), data.name)
 
+    #TODO сохранить всё в файл
+    #TODO если стоит галка, то сохранить оставшиеся строки
+
 
 # df = df_orig[df_orig["Копирайт"] == "Pancher Label / SOEXC3LLENT"]
 
