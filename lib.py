@@ -80,7 +80,7 @@ def read_df(c, result):
     result.append(df_orig)
 
 result = []
-threading.Thread(target=read_df, args=(c,result)).start()
+threading.Thread(target=read_df, args=(c,result), daemon=True).start()
 
 all_case_dfs = list()
 
@@ -94,12 +94,16 @@ def save_rest_df():
 
 
 def run(case):
-    global result, all_case_dfs
+    global result
 
     if not result:
         return None, None, None
 
+    if case == "":
+        return 0,0,0
+
     df_orig = result[0]
+    case_dfs = []
 
     case = case.replace(f"{FOLDER}{os.path.sep}", "")
 
@@ -114,6 +118,7 @@ def run(case):
         data = parse_filename(case)
         df = eval(code_output)
 
+        case_dfs.append(df)
         all_case_dfs.append(df)
 
         sum_all += calc_sum(df)
@@ -126,6 +131,7 @@ def run(case):
             code_output = parse_conditions_to_code(conditions)
             df = eval(code_output)
 
+            case_dfs.append(df)
             all_case_dfs.append(df)
 
             data = parse_filename(subcase)
@@ -136,7 +142,7 @@ def run(case):
             sum_after += r
         data.name = case
 
-    res_df = pd.concat(all_case_dfs)
+    res_df = pd.concat(case_dfs).drop_duplicates()
 
     if not os.path.exists(OUTPUT):
         os.mkdir(OUTPUT)

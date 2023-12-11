@@ -8,23 +8,45 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QCheckBox,
     QMessageBox,
+    QTextEdit,
 )
 from PyQt5.QtCore import QTimer
 import json
 
 from lib import run, FOLDER, result, save_rest_df
 
-class CheckWindow(QWidget):
-    def __init__(self, case):
-        super().__init__()
-        self.initUI(case)
+from PyQt5.QtCore import QThread, pyqtSignal
 
-    def initUI(self, case):
-        self.setWindowTitle(f"Проверка {case}")
-        self.setGeometry(100, 100, 400, 300)
-        layout = QVBoxLayout()
-        self.setLayout(layout)
-        layout.addWidget(QPushButton("Кнопка"))
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+
+class SaveRest(QThread):
+    finished = pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
+
+    def run(self):
+        save_rest_df()
+        self.finished.emit()
+
+
+
+class RunCalc(QThread):
+    finished = pyqtSignal(int, str, str, str)
+
+    def __init__(self, text, row_num):
+        super().__init__()
+        self.text = text
+        self.row_num = row_num
+
+    def run(self):
+        row_count, sum_all, sum_after = run(self.text)
+        if all(k is not None for k in [row_count, sum_all, sum_after]):
+            self.finished.emit(self.row_num, str(row_count), str(sum_all), str(sum_after))
+        else:
+            self.finished.emit(self.row_num, None, None, None)
 
 
 class MainWindow(QWidget):
@@ -33,6 +55,18 @@ class MainWindow(QWidget):
         
         with open("config.json", "r", encoding="utf-8") as f:
             config = json.loads(f.read())
+
+        self.workers = []
+        self.save_rest = []
+        self.fileLoaded = False
+
+        self.logViewer = QTextEdit(self)
+        self.logViewer.setReadOnly(True)
+        self.logViewer.append(f"Загрузка файла {config['filename']}.  Пожалуйста подождите")
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.checkDownload)
+        self.timer.start(1000)
 
         self.check_windows = []
         self.resize(1200, 800)
@@ -69,30 +103,64 @@ class MainWindow(QWidget):
         layout_h.addWidget(self.table)
         layout_h.addLayout(layout_v)
 
-        self.setLayout(layout_h)
+        main_layout = QVBoxLayout()
+
+        main_layout.addLayout(layout_h)
+        main_layout.addWidget(self.logViewer)
+
+        self.setLayout(main_layout)
 
     def on_evaluate_cases_clicked(self):
-        def eval_row(text, row_num):
-            row_count, sum_all, sum_after = run(text)
-            if all(k is not None for k in [row_count, sum_all, sum_after]):
-                self.table.setItem(row_num, 1, QTableWidgetItem(f"{row_count}"))
-                self.table.setItem(row_num, 2, QTableWidgetItem(f"{sum_all}"))
-                self.table.setItem(row_num, 3, QTableWidgetItem(f"{sum_after}"))
-            else:
-                QMessageBox.information(self, 'Информация', 'Файл еще не загружен')
-                return 1
-
+        if not self.fileLoaded:
+            QMessageBox.information(self, 'Ошибка', 'Файл еще не загружен')
+            return
+        
+        self.active_workers = 0
         if self.table.selectedItems():
             for item in self.table.selectedItems():
-                if eval_row(item.text(), item.row()):
-                    break
+                worker = RunCalc(item.text(), int(item.row()))
+                worker.finished.connect(self.update_table)
+                worker.finished.connect(self.check_all_workers_finished)
+                self.workers.append(worker)
+                worker.start()
+                
         else:
             for i in range(self.table.rowCount()):
-                if eval_row(self.table.item(i, 0).text(), i):
-                    break
+                worker = RunCalc(self.table.item(i, 0).text(), i)
+                worker.finished.connect(self.update_table)
+                worker.finished.connect(self.check_all_workers_finished)
+                self.workers.append(worker)
+                worker.start()
 
-        if self.checkbox.isChecked():
-            save_rest_df()
+    def update_table(self, row_num, row_count, sum_all, sum_after):
+        if row_count == "":
+            return
+
+        self.logViewer.append(f"Данные посчитаны {self.table.item(row_num, 0).text()}")
+
+        self.table.setItem(row_num, 1, QTableWidgetItem(row_count))
+        self.table.setItem(row_num, 2, QTableWidgetItem(sum_all))
+        self.table.setItem(row_num, 3, QTableWidgetItem(sum_after))
+
+    def check_all_workers_finished(self, row_num, row_count, sum_all, sum_after):
+        self.workers = [worker for worker in self.workers if worker.isRunning()]
+        if len(self.workers) == 0:
+            if row_count == "":
+                return
+            QMessageBox.information(self, 'Завершение', 'Все задачи завершены')
+            if self.checkbox.isChecked():
+                self.logViewer.append(f"Сохранение необработанных строк")
+                
+                save = SaveRest()
+                save.finished.connect(self.save_finish)
+                self.save_rest.append(save)
+                save.start()
+    
+    def save_finish(self):
+        self.save_rest = []
+        self.logViewer.append(f"Необработанных строки сохранены")
+
+
 
     def addRow(self, case):
         rowCount = self.table.rowCount()
@@ -101,6 +169,13 @@ class MainWindow(QWidget):
         self.table.setItem(rowCount, 1, QTableWidgetItem(f"x"))
         self.table.setItem(rowCount, 2, QTableWidgetItem(f"x"))
         self.table.setItem(rowCount, 3, QTableWidgetItem(f"x"))
+
+    def checkDownload(self):
+        row_count, _, _ = run("")
+        if row_count == 0:
+            self.logViewer.append(f"Файл загружен")
+            self.fileLoaded = True
+            self.timer.stop()
 
 app = QApplication([])
 
