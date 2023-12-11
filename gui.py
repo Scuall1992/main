@@ -30,6 +30,10 @@ class SaveRest(QThread):
     def run(self):
         save_rest_df()
         self.finished.emit()
+        
+    def stop(self):
+        self.quit()  # Останавливает цикл событий потока
+        self.wait()  # Дожидается завершения потока
 
 
 
@@ -47,6 +51,10 @@ class RunCalc(QThread):
             self.finished.emit(self.row_num, str(row_count), str(sum_all), str(sum_after))
         else:
             self.finished.emit(self.row_num, None, None, None)
+            
+    def stop(self):
+        self.quit()  # Останавливает цикл событий потока
+        self.wait()  # Дожидается завершения потока
 
 
 class MainWindow(QWidget):
@@ -176,10 +184,20 @@ class MainWindow(QWidget):
             self.logViewer.append(f"Файл загружен")
             self.fileLoaded = True
             self.timer.stop()
+            
+    def stop_all_threads(self):
+        for thread in self.workers:
+            if thread.isRunning():
+                thread.stop()
+        if self.save_rest:
+            if self.save_rest[0].isRunning():
+                self.save_rest[0].stop()
 
 app = QApplication([])
 
 window = MainWindow()
 window.show()
+
+app.aboutToQuit.connect(window.stop_all_threads)
 
 app.exec()
