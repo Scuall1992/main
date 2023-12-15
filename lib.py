@@ -10,13 +10,10 @@ from dataclasses import dataclass
 import threading
 
 def subtract_df(df_original, df_subset):
-    # Слияние двух DataFrame с помощью внешнего слияния (outer join) и индикатора
     merged_df = pd.merge(df_original, df_subset, how='outer', indicator=True)
 
-    # Выбираем только те строки, которые присутствуют в оригинальном DataFrame
     df_result = merged_df[merged_df['_merge'] == 'left_only'].drop(columns=['_merge'])
 
-    # Если вы хотите сохранить только столбцы оригинального DataFrame
     df_result = df_result[df_original.columns]
 
     return df_result
@@ -150,11 +147,3 @@ def run(case):
     res_df.to_excel(os.path.join(OUTPUT, f"{case}.xlsx", ), index=False)
 
     return len(res_df), round(sum_all, 2), round(sum_after, 2)
-
-
-# df = df_orig[df_orig["Копирайт"] == "Pancher Label / SOEXC3LLENT"]
-
-# sub_df = subtract_df(df, pd.concat(case_dfs["Мозговой"]).drop_duplicates())
-
-# print(calc_sum(sub_df) * (70/100))
-
