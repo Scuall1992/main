@@ -67,6 +67,7 @@ class MainWindow(QWidget):
         self.workers = []
         self.save_rest = []
         self.fileLoaded = False
+        self.showFullScreen()
 
         self.logViewer = QTextEdit(self)
         self.logViewer.setReadOnly(True)

@@ -53,17 +53,19 @@ def calc_sum(df):
 
 @dataclass
 class Data:
-    per: float
+    license: int
+    track: int
     name: str
 
 def parse_filename(name: str) -> Data:
     name = name.replace(".txt", "")
     d = name.split(",")
 
-    per = float(d[0].replace("per=", ""))
-    name = d[1].replace("name=", "")
+    license = int(d[0].replace("license=", ""))
+    track = int(d[1].replace("track=", ""))
+    name = d[2].replace("name=", "")
 
-    return Data(per=per, name=name)
+    return Data(license=license, track=track, name=name)
 
 with open("config.json", "r", encoding="utf-8") as f:
     c = json.loads(f.read())
@@ -89,6 +91,10 @@ def save_rest_df():
 
     subtract_df(result[0], pd.concat(all_case_dfs)).to_excel("not_measured.xlsx", index=False)
 
+
+
+def get_percent(data: Data):
+    return ((data.license*data.track)/10000)
 
 def run(case):
     global result
@@ -119,7 +125,7 @@ def run(case):
         all_case_dfs.append(df)
 
         sum_all += calc_sum(df)
-        sum_after += sum_all * (data.per/100)
+        sum_after += sum_all * get_percent(data)
     else:
         for subcase in os.listdir(case_path):
             r = 0
@@ -135,7 +141,7 @@ def run(case):
             r = calc_sum(df)
             sum_all += r
 
-            r *= (data.per/100)
+            r *= get_percent(data)
             sum_after += r
         data.name = case
 
