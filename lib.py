@@ -61,9 +61,9 @@ def parse_filename(name: str) -> Data:
     name = name.replace(".txt", "")
     d = name.split(",")
 
-    license = int(d[0].replace("license=", ""))
-    track = int(d[1].replace("track=", ""))
-    name = d[2].replace("name=", "")
+    name = d[0].replace("name=", "")
+    license = int(d[1].replace("license=", ""))
+    track = int(d[2].replace("track=", ""))
 
     return Data(license=license, track=track, name=name)
 

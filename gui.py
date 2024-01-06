@@ -67,7 +67,7 @@ class MainWindow(QWidget):
         self.workers = []
         self.save_rest = []
         self.fileLoaded = False
-        self.showFullScreen()
+        
 
         self.logViewer = QTextEdit(self)
         self.logViewer.setReadOnly(True)
@@ -118,6 +118,8 @@ class MainWindow(QWidget):
         main_layout.addWidget(self.logViewer)
 
         self.setLayout(main_layout)
+
+        self.showMaximized()
 
     def on_evaluate_cases_clicked(self):
         if not self.fileLoaded:
