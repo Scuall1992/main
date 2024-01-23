@@ -130,6 +130,7 @@ class MainWindow(QWidget):
         if self.table.selectedItems():
             for item in self.table.selectedItems():
                 worker = RunCalc(item.text(), int(item.row()))
+                self.logViewer.append(f"Начинаем формировать отчет {self.table.item(int(item.row()), 0).text()}")
                 worker.finished.connect(self.update_table)
                 worker.finished.connect(self.check_all_workers_finished)
                 self.workers.append(worker)
@@ -138,6 +139,7 @@ class MainWindow(QWidget):
         else:
             for i in range(self.table.rowCount()):
                 worker = RunCalc(self.table.item(i, 0).text(), i)
+                self.logViewer.append(f"Начинаем формировать отчет {self.table.item(i, 0).text()}")
                 worker.finished.connect(self.update_table)
                 worker.finished.connect(self.check_all_workers_finished)
                 self.workers.append(worker)

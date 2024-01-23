@@ -96,6 +96,25 @@ def save_rest_df():
 def get_percent(data: Data):
     return ((data.license*data.track)/10000)
 
+
+def change_data_in_columns(df, percent, license):
+    a = 18
+    b = 19
+    c = 21
+    d = 22
+    e = 20
+    f = 23
+
+    df.iloc[:, a] = df.iloc[:, c]
+    df.iloc[:, b] = df.iloc[:, d]
+    df.iloc[:, f] = (df.iloc[:, c] + df.iloc[:, d]) * (percent * license) / 10000
+    df.iloc[:, c] = df.iloc[:, c] * (percent * license) / 10000
+    df.iloc[:, d] = df.iloc[:, d] * (percent * license) / 10000
+    df.iloc[:, e] = f"{percent}%"
+
+
+    return df
+
 def run(case):
     global result
 
@@ -119,7 +138,7 @@ def run(case):
             conditions = f.read()
         code_output = parse_conditions_to_code(conditions)
         data = parse_filename(case)
-        df = eval(code_output)
+        df = change_data_in_columns(eval(code_output), data.track, data.license)
 
         case_dfs.append(df)
         all_case_dfs.append(df)
@@ -132,12 +151,13 @@ def run(case):
             with open(os.path.join(case_path, subcase), "r", encoding="utf-8") as f:
                 conditions = f.read()
             code_output = parse_conditions_to_code(conditions)
-            df = eval(code_output)
+            data = parse_filename(subcase)
+
+            df = change_data_in_columns(eval(code_output), data.track, data.license)
 
             case_dfs.append(df)
             all_case_dfs.append(df)
 
-            data = parse_filename(subcase)
             r = calc_sum(df)
             sum_all += r
 
@@ -147,9 +167,113 @@ def run(case):
 
     res_df = pd.concat(case_dfs).drop_duplicates()
 
+    column_index = 23
+    total_sum = res_df.iloc[:,  column_index].sum()
+
+
+    last_row_data = {
+        16: "Итого: ",
+        22: res_df.iloc[:,  22].sum(),
+        21: res_df.iloc[:,  21].sum(),
+        19: res_df.iloc[:,  19].sum(),
+        18: res_df.iloc[:,  18].sum(),
+        23: res_df.iloc[:,  23].sum(),
+    }
+
+    # Создание новой строки с итоговой суммой
+    new_row = pd.DataFrame([last_row_data[i] if i in last_row_data else None for i in range(len(res_df.columns))]).T
+    new_row.columns = res_df.columns
+
+    # Добавление новой строки в DataFrame с помощью concat
+    res_df = pd.concat([res_df, new_row], ignore_index=True)
+
     if not os.path.exists(OUTPUT):
         os.mkdir(OUTPUT)
 
-    res_df.to_excel(os.path.join(OUTPUT, f"{case}.xlsx", ), index=False)
+    excel_filepath = os.path.join(OUTPUT, f"{case}.xlsx", )
+
+    res_df = res_df.drop(res_df.columns[-1], axis=1)
+    res_df = res_df.drop(res_df.columns[0], axis=1)
+    res_df = res_df.reset_index(drop=True)
+    res_df.to_excel(excel_filepath, index=False, sheet_name="Детализированный отчёт")
+
+    grouped_df = res_df.groupby('Площадка').agg({
+        'Количество загрузок/прослушиваний': 'sum',
+        'Итого вознаграждение ЛИЦЕНЗИАРА в руб., без НДС': 'sum'
+    })
+
+    with pd.ExcelWriter(excel_filepath, engine='openpyxl', mode='a') as writer:
+        grouped_df.to_excel(writer, sheet_name='Сводный отчёт')
+
+
+    # import openpyxl
+    # from openpyxl.utils import get_column_letter
+
+    # workbook = openpyxl.load_workbook(excel_filepath)
+
+    # def auto_adjust_columns_width(sheet):
+    #     for col_num, column in enumerate(sheet.columns, 1):
+    #         max_length = 0
+    #         for cell in column:
+    #             if cell.value:
+    #                 max_length = max(max_length, len(str(cell.value)))
+    #         adjusted_width = max_length + 2
+    #         sheet.column_dimensions[get_column_letter(col_num)].width = adjusted_width
+
+    # # Применение настройки ширины к каждому листу
+    # for sheet_name in workbook.sheetnames:
+    #     auto_adjust_columns_width(workbook[sheet_name])
+
+    # workbook.save(excel_filepath)
+        
+    import openpyxl
+    from openpyxl.styles import Border, Side, Alignment, Font, numbers
+
+    # Загрузка существующего файла Excel или создание нового
+    workbook = openpyxl.load_workbook(excel_filepath)
+
+    alignment = Alignment(wrap_text=False, shrink_to_fit=True, horizontal='left')
+    bold_font = Font(bold=True)
+
+    for sheet_name in workbook.sheetnames:
+        workbook[sheet_name].sheet_view.zoomScale = 80
+        print(sheet_name)
+        # Создание стиля границы
+        thin_border = Border(left=Side(style='thin'),
+                            right=Side(style='thin'),
+                            top=Side(style='thin'),
+                            bottom=Side(style='thin'))
+
+        # Применение границ ко всем ячейкам с данными
+        for row in workbook[sheet_name].iter_rows(min_row=1, max_row=workbook[sheet_name].max_row, min_col=1, max_col=workbook[sheet_name].max_column):
+            for cell in row:
+                if row.index == workbook[sheet_name].max_row - 1:
+                    cell.font = bold_font
+                cell.border = thin_border
+                cell.alignment = alignment
+            
+        cols_to_format = ['L', 'M']
+
+        # Проходим по каждой колонке и устанавливаем формат процентов
+        for col in cols_to_format:
+            for cell in workbook[sheet_name][col]:
+                cell.number_format = numbers.FORMAT_PERCENTAGE_00
+
+        # Получаем номер последней строки
+        last_row = workbook[sheet_name].max_row
+
+        # Задаем пользовательский формат валюты
+        currency_format = '#,##0.00 ₽'
+
+        # Применяем формат к каждой ячейке в последней строке
+        for cell in workbook[sheet_name][last_row]:
+            cell.number_format = currency_format
+
+
+    # Сохранение изменений в файле
+    workbook.save(excel_filepath)
+
+
+
 
     return len(res_df), round(sum_all, 2), round(sum_after, 2)
