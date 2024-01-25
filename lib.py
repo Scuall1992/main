@@ -202,30 +202,24 @@ def run(case):
         'Итого вознаграждение ЛИЦЕНЗИАРА в руб., без НДС': 'sum'
     })
 
+    grouped_df.rename(columns={
+        "Количество загрузок/прослушиваний": "Количество загрузок / прослушиваний",
+        "Итого вознаграждение ЛИЦЕНЗИАРА в руб., без НДС": "Итого вознаграждение лицензиара, руб.",
+    }, inplace=True)
+
+    last_row_data_gr = {
+        0: grouped_df.iloc[:,  0].sum(),
+        1: grouped_df.iloc[:,  1].sum(),
+    }
+
+    new_row_gr = pd.DataFrame([last_row_data_gr[i] if i in last_row_data_gr else None for i in range(len(grouped_df.columns))]).T
+    new_row_gr.columns = grouped_df.columns
+    grouped_df = pd.concat([grouped_df, new_row_gr], ignore_index=False)
+
+    
     with pd.ExcelWriter(excel_filepath, engine='openpyxl', mode='a') as writer:
         grouped_df.to_excel(writer, sheet_name='Сводный отчёт')
 
-
-    # import openpyxl
-    # from openpyxl.utils import get_column_letter
-
-    # workbook = openpyxl.load_workbook(excel_filepath)
-
-    # def auto_adjust_columns_width(sheet):
-    #     for col_num, column in enumerate(sheet.columns, 1):
-    #         max_length = 0
-    #         for cell in column:
-    #             if cell.value:
-    #                 max_length = max(max_length, len(str(cell.value)))
-    #         adjusted_width = max_length + 2
-    #         sheet.column_dimensions[get_column_letter(col_num)].width = adjusted_width
-
-    # # Применение настройки ширины к каждому листу
-    # for sheet_name in workbook.sheetnames:
-    #     auto_adjust_columns_width(workbook[sheet_name])
-
-    # workbook.save(excel_filepath)
-        
     import openpyxl
     from openpyxl.styles import Border, Side, Alignment, Font, numbers
 
@@ -251,7 +245,7 @@ def run(case):
                     cell.font = bold_font
                 cell.border = thin_border
                 cell.alignment = alignment
-            
+
         cols_to_format = ['L', 'M']
 
         # Проходим по каждой колонке и устанавливаем формат процентов
@@ -259,15 +253,32 @@ def run(case):
             for cell in workbook[sheet_name][col]:
                 cell.number_format = numbers.FORMAT_PERCENTAGE_00
 
-        # Получаем номер последней строки
-        last_row = workbook[sheet_name].max_row
+        if sheet_name == "Детализированный отчёт":
+            # Получаем номер последней строки
+            last_row = workbook[sheet_name].max_row
 
-        # Задаем пользовательский формат валюты
-        currency_format = '#,##0.00 ₽'
+            # Задаем пользовательский формат валюты
+            currency_format = '#,##0.00 ₽'
 
-        # Применяем формат к каждой ячейке в последней строке
-        for cell in workbook[sheet_name][last_row]:
-            cell.number_format = currency_format
+            # Применяем формат к каждой ячейке в последней строке
+            for cell in workbook[sheet_name][last_row]:
+                cell.number_format = currency_format
+        else:
+            last_row = workbook[sheet_name].max_row
+
+            # Задаем пользовательский формат валюты
+            currency_format = '#,##0.00 ₽'
+
+
+            workbook[sheet_name][last_row][0].value = "Итого: "
+            workbook[sheet_name][last_row][1].number_format = "#,##0"
+            workbook[sheet_name][last_row][2].number_format = currency_format
+
+            for i in range(1, workbook[sheet_name].max_row):
+                workbook[sheet_name][i][1].number_format = "#,##0"
+                workbook[sheet_name][i][2].number_format = currency_format
+
+
 
 
     # Сохранение изменений в файле
