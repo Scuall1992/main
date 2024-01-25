@@ -10,6 +10,8 @@ from dataclasses import dataclass
 import threading
 
 def subtract_df(df_original, df_subset):
+    # переписать с ключом первых 20-ти колонок
+
     merged_df = pd.merge(df_original, df_subset, how='outer', indicator=True)
 
     df_result = merged_df[merged_df['_merge'] == 'left_only'].drop(columns=['_merge'])
@@ -62,8 +64,8 @@ def parse_filename(name: str) -> Data:
     d = name.split(",")
 
     name = d[0].replace("name=", "")
-    license = int(d[1].replace("license=", ""))
-    track = int(d[2].replace("track=", ""))
+    track = int(d[1].replace("track=", ""))
+    license = int(d[2].replace("license=", ""))
 
     return Data(license=license, track=track, name=name)
 
@@ -133,15 +135,12 @@ def run(case):
     sum_all = 0
     sum_after = 0
 
-    # print(df_orig)
-
     if os.path.isfile(case_path):
         with open(case_path, "r", encoding="utf-8") as f:
             conditions = f.read()
         code_output = parse_conditions_to_code(conditions)
         data = parse_filename(case)
-        # print(code_output)
-        df = change_data_in_columns(eval(code_output), data.track, data.license)
+        df = change_data_in_columns(eval(code_output), data.license, data.track)
 
         case_dfs.append(df)
         all_case_dfs.append(df)
@@ -156,7 +155,7 @@ def run(case):
             code_output = parse_conditions_to_code(conditions)
             data = parse_filename(subcase)
 
-            df = change_data_in_columns(eval(code_output), data.track, data.license)
+            df = change_data_in_columns(eval(code_output), data.license, data.track)
 
             case_dfs.append(df)
             all_case_dfs.append(df)
@@ -176,18 +175,17 @@ def run(case):
 
     last_row_data = {
         16: "Итого: ",
-        22: res_df.iloc[:,  22].sum(),
-        21: res_df.iloc[:,  21].sum(),
-        19: res_df.iloc[:,  19].sum(),
+        17: res_df.iloc[:,  17].sum(),
         18: res_df.iloc[:,  18].sum(),
+        19: res_df.iloc[:,  19].sum(),
+        21: res_df.iloc[:,  21].sum(),
+        22: res_df.iloc[:,  22].sum(),
         23: res_df.iloc[:,  23].sum(),
     }
 
-    # Создание новой строки с итоговой суммой
     new_row = pd.DataFrame([last_row_data[i] if i in last_row_data else None for i in range(len(res_df.columns))]).T
     new_row.columns = res_df.columns
 
-    # Добавление новой строки в DataFrame с помощью concat
     res_df = pd.concat([res_df, new_row], ignore_index=True)
 
     if not os.path.exists(OUTPUT):
@@ -219,14 +217,13 @@ def run(case):
     new_row_gr.columns = grouped_df.columns
     grouped_df = pd.concat([grouped_df, new_row_gr], ignore_index=False)
 
-    
+
     with pd.ExcelWriter(excel_filepath, engine='openpyxl', mode='a') as writer:
         grouped_df.to_excel(writer, sheet_name='Сводный отчёт')
 
     import openpyxl
     from openpyxl.styles import Border, Side, Alignment, Font, numbers
 
-    # Загрузка существующего файла Excel или создание нового
     workbook = openpyxl.load_workbook(excel_filepath)
 
     alignment = Alignment(wrap_text=False, shrink_to_fit=True, horizontal='left')
@@ -234,46 +231,44 @@ def run(case):
 
     for sheet_name in workbook.sheetnames:
         workbook[sheet_name].sheet_view.zoomScale = 80
-        # print(sheet_name, workbook[sheet_name].max_row, workbook[sheet_name].max_column)
-        # Создание стиля границы
         thin_border = Border(left=Side(style='thin'),
                             right=Side(style='thin'),
                             top=Side(style='thin'),
                             bottom=Side(style='thin'))
 
-        # # Применение границ ко всем ячейкам с данными
-        # for row in workbook[sheet_name].iter_rows(min_row=1, max_row=workbook[sheet_name].max_row, min_col=1, max_col=workbook[sheet_name].max_column):
-        #     for cell in row:
-        #         if row.index == workbook[sheet_name].max_row - 1:
-        #             cell.font = bold_font
-        #         print(cell)
-        #         cell.border = thin_border
-        #         cell.alignment = alignment
+        if sheet_name == "Сводный отчёт":
+            for row in workbook[sheet_name].iter_rows(min_row=1, max_row=workbook[sheet_name].max_row, min_col=1, max_col=workbook[sheet_name].max_column):
+                for cell in row:
+                    if row.index == workbook[sheet_name].max_row - 1:
+                        cell.font = bold_font
+                    cell.border = thin_border
+                    cell.alignment = alignment
 
         cols_to_format = ['L', 'M']
 
-        # Проходим по каждой колонке и устанавливаем формат процентов
         for col in cols_to_format:
             for cell in workbook[sheet_name][col]:
-                # print(cell)
                 cell.number_format = numbers.FORMAT_PERCENTAGE_00
 
+        cols_to_format_rub = ['R', 'S', 'U', 'V', 'W']
+        currency_format = '#,##0.00 ₽'
+
+        for col in cols_to_format_rub:
+            for cell in workbook[sheet_name][col]:
+                cell.number_format = currency_format
+
+        for cell in workbook[sheet_name]['Q']:
+            cell.number_format = "#,##0"
+
         if sheet_name == "Детализированный отчёт":
-            # Получаем номер последней строки
             last_row = workbook[sheet_name].max_row
 
-            # Задаем пользовательский формат валюты
-            currency_format = '#,##0.00 ₽'
-
-            # Применяем формат к каждой ячейке в последней строке
             for cell in workbook[sheet_name][last_row]:
-                cell.number_format = currency_format
+                if cell.column_letter != 'Q':
+                    cell.number_format = currency_format
         else:
             last_row = workbook[sheet_name].max_row
-
-            # Задаем пользовательский формат валюты
             currency_format = '#,##0.00 ₽'
-
 
             workbook[sheet_name][last_row][0].value = "Итого: "
             workbook[sheet_name][last_row][1].number_format = "#,##0"
@@ -283,7 +278,6 @@ def run(case):
                 workbook[sheet_name][i][1].number_format = "#,##0"
                 workbook[sheet_name][i][2].number_format = currency_format
 
-    # Сохранение изменений в файле
     workbook.save(excel_filepath)
 
     return len(res_df), round(sum_all, 2)

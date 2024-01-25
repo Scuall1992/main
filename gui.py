@@ -67,7 +67,7 @@ class MainWindow(QWidget):
         self.workers = []
         self.save_rest = []
         self.fileLoaded = False
-        
+
 
         self.logViewer = QTextEdit(self)
         self.logViewer.setReadOnly(True)
@@ -122,6 +122,7 @@ class MainWindow(QWidget):
         self.showMaximized()
 
     def on_evaluate_cases_clicked(self):
+        self.evaluate_cases.setDisabled(True)
         if not self.fileLoaded:
             QMessageBox.information(self, 'Ошибка', 'Файл еще не загружен')
             return
@@ -160,6 +161,7 @@ class MainWindow(QWidget):
             if row_count == "":
                 return
             QMessageBox.information(self, 'Завершение', 'Все задачи завершены')
+            self.evaluate_cases.setDisabled(False)
             if self.checkbox.isChecked():
                 self.logViewer.append(f"Сохранение необработанных строк")
                 
@@ -172,15 +174,12 @@ class MainWindow(QWidget):
         self.save_rest = []
         self.logViewer.append(f"Необработанных строки сохранены")
 
-
-
     def addRow(self, case):
         rowCount = self.table.rowCount()
         self.table.insertRow(rowCount)
         self.table.setItem(rowCount, 0, QTableWidgetItem(f"{case}"))
         self.table.setItem(rowCount, 1, QTableWidgetItem(f"x"))
         self.table.setItem(rowCount, 2, QTableWidgetItem(f"x"))
-        self.table.setItem(rowCount, 3, QTableWidgetItem(f"x"))
 
     def checkDownload(self):
         row_count, _, _ = run("")
