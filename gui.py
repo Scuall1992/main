@@ -38,7 +38,7 @@ class SaveRest(QThread):
 
 
 class RunCalc(QThread):
-    finished = pyqtSignal(int, str, str, str)
+    finished = pyqtSignal(int, str, str)
 
     def __init__(self, text, row_num):
         super().__init__()
@@ -46,11 +46,11 @@ class RunCalc(QThread):
         self.row_num = row_num
 
     def run(self):
-        row_count, sum_all, sum_after = run(self.text)
-        if all(k is not None for k in [row_count, sum_all, sum_after]):
-            self.finished.emit(self.row_num, str(row_count), str(sum_all), str(sum_after))
+        row_count, sum_all = run(self.text)
+        if all(k is not None for k in [row_count, sum_all]):
+            self.finished.emit(self.row_num, str(row_count), str(sum_all))
         else:
-            self.finished.emit(self.row_num, None, None, None)
+            self.finished.emit(self.row_num, None, None)
             
     def stop(self):
         self.quit()  # Останавливает цикл событий потока
@@ -80,8 +80,8 @@ class MainWindow(QWidget):
         self.check_windows = []
         self.resize(1200, 800)
         # имя контрагента, кол-во строк в екселе, сумма до процента, сумма после процента
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Путь к вычислениям", "Количество строк", "Сумма поступлений", "Сумма выплат"])
+        self.table = QTableWidget(0, 3)
+        self.table.setHorizontalHeaderLabels(["Путь к вычислениям", "Количество строк", "Сумма итоговых выплат"])
 
         from pathlib import Path
 
@@ -145,7 +145,7 @@ class MainWindow(QWidget):
                 self.workers.append(worker)
                 worker.start()
 
-    def update_table(self, row_num, row_count, sum_all, sum_after):
+    def update_table(self, row_num, row_count, sum_all):
         if row_count == "":
             return
 
@@ -153,9 +153,8 @@ class MainWindow(QWidget):
 
         self.table.setItem(row_num, 1, QTableWidgetItem(row_count))
         self.table.setItem(row_num, 2, QTableWidgetItem(sum_all))
-        self.table.setItem(row_num, 3, QTableWidgetItem(sum_after))
 
-    def check_all_workers_finished(self, row_num, row_count, sum_all, sum_after):
+    def check_all_workers_finished(self, row_num, row_count, sum_all):
         self.workers = [worker for worker in self.workers if worker.isRunning()]
         if len(self.workers) == 0:
             if row_count == "":

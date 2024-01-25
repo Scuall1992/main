@@ -1,8 +1,7 @@
 {
     "filename": "report.xlsx",
-    "header_index": 5,
-    "col_len": 25,
-    "SUM_1": 21,
-    "SUM_2": 22,
-    "PERCENT": 20
+    "header_index_from_zero": 5,
+    "col_count": 25,
+    "Вознаграждение_1": 21,
+    "Вознаграждение_2": 22
 }

@@ -47,7 +47,7 @@ def parse_conditions_to_code(conditions):
 def calc_sum(df):
     res = 0
     for index, row in df.iterrows():
-        res += (row.iloc[c["SUM_1"]] + row.iloc[c["SUM_2"]])
+        res += (row.iloc[c["Вознаграждение_1"]] + row.iloc[c["Вознаграждение_2"]])
     return round(res, 2)
 
 
@@ -71,11 +71,11 @@ with open("config.json", "r", encoding="utf-8") as f:
     c = json.loads(f.read())
 
 def read_df(c, result):
-    df_orig = pd.read_excel(c["filename"], header=c["header_index"])
+    df_orig = pd.read_excel(c["filename"], header=c["header_index_from_zero"])
 
-    col_len = len(df_orig.columns)
-    if  col_len > c["col_len"]:
-        df_orig = df_orig.iloc[:, :c["col_len"]-col_len]
+    col_count = len(df_orig.columns)
+    if  col_count > c["col_count"]:
+        df_orig = df_orig.iloc[:, :c["col_count"]-col_count]
     result.append(df_orig)
 
 result = []
@@ -133,11 +133,14 @@ def run(case):
     sum_all = 0
     sum_after = 0
 
+    # print(df_orig)
+
     if os.path.isfile(case_path):
         with open(case_path, "r", encoding="utf-8") as f:
             conditions = f.read()
         code_output = parse_conditions_to_code(conditions)
         data = parse_filename(case)
+        # print(code_output)
         df = change_data_in_columns(eval(code_output), data.track, data.license)
 
         case_dfs.append(df)
@@ -231,26 +234,28 @@ def run(case):
 
     for sheet_name in workbook.sheetnames:
         workbook[sheet_name].sheet_view.zoomScale = 80
-        print(sheet_name)
+        # print(sheet_name, workbook[sheet_name].max_row, workbook[sheet_name].max_column)
         # Создание стиля границы
         thin_border = Border(left=Side(style='thin'),
                             right=Side(style='thin'),
                             top=Side(style='thin'),
                             bottom=Side(style='thin'))
 
-        # Применение границ ко всем ячейкам с данными
-        for row in workbook[sheet_name].iter_rows(min_row=1, max_row=workbook[sheet_name].max_row, min_col=1, max_col=workbook[sheet_name].max_column):
-            for cell in row:
-                if row.index == workbook[sheet_name].max_row - 1:
-                    cell.font = bold_font
-                cell.border = thin_border
-                cell.alignment = alignment
+        # # Применение границ ко всем ячейкам с данными
+        # for row in workbook[sheet_name].iter_rows(min_row=1, max_row=workbook[sheet_name].max_row, min_col=1, max_col=workbook[sheet_name].max_column):
+        #     for cell in row:
+        #         if row.index == workbook[sheet_name].max_row - 1:
+        #             cell.font = bold_font
+        #         print(cell)
+        #         cell.border = thin_border
+        #         cell.alignment = alignment
 
         cols_to_format = ['L', 'M']
 
         # Проходим по каждой колонке и устанавливаем формат процентов
         for col in cols_to_format:
             for cell in workbook[sheet_name][col]:
+                # print(cell)
                 cell.number_format = numbers.FORMAT_PERCENTAGE_00
 
         if sheet_name == "Детализированный отчёт":
@@ -278,13 +283,7 @@ def run(case):
                 workbook[sheet_name][i][1].number_format = "#,##0"
                 workbook[sheet_name][i][2].number_format = currency_format
 
-
-
-
     # Сохранение изменений в файле
     workbook.save(excel_filepath)
 
-
-
-
-    return len(res_df), round(sum_all, 2), round(sum_after, 2)
+    return len(res_df), round(sum_all, 2)
