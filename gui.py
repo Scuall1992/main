@@ -80,8 +80,8 @@ class MainWindow(QWidget):
         self.check_windows = []
         self.resize(1200, 800)
         # имя контрагента, кол-во строк в екселе, сумма до процента, сумма после процента
-        self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["Путь к вычислениям", "Количество строк", "Сумма итоговых выплат"])
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(["Имя контрагента", "Путь к вычислениям", "Количество строк", "Сумма итоговых выплат"])
 
         from pathlib import Path
 
@@ -91,17 +91,18 @@ class MainWindow(QWidget):
 
         for file in all_files:
             if file.is_file() and file.suffix == ".txt":
-                self.addRow(str(file))
+                name = str(file).split(',')[0].replace("name=","").replace("cases\\", "")
+                self.addRow(str(file), name)
 
         for file in all_files:
             if file.is_dir():
-                self.addRow(str(file))
+                self.addRow(str(file), str(file).replace("cases\\", ""))
 
         self.table.resizeColumnsToContents()
 
         self.evaluate_cases = QPushButton("Рассчитать")
         self.evaluate_cases.clicked.connect(self.on_evaluate_cases_clicked)
-
+        self.evaluate_cases.setDisabled(True)
         self.checkbox = QCheckBox("Создать файл с необработанными строками")
 
         layout_v = QVBoxLayout()
@@ -125,12 +126,13 @@ class MainWindow(QWidget):
         self.evaluate_cases.setDisabled(True)
         if not self.fileLoaded:
             QMessageBox.information(self, 'Ошибка', 'Файл еще не загружен')
+            self.evaluate_cases.setDisabled(False)
             return
         
         self.active_workers = 0
         if self.table.selectedItems():
             for item in self.table.selectedItems():
-                worker = RunCalc(item.text(), int(item.row()))
+                worker = RunCalc(self.table.item(int(item.row()), 1).text(), int(item.row()))
                 self.logViewer.append(f"Начинаем формировать отчет {self.table.item(int(item.row()), 0).text()}")
                 worker.finished.connect(self.update_table)
                 worker.finished.connect(self.check_all_workers_finished)
@@ -139,7 +141,7 @@ class MainWindow(QWidget):
                 
         else:
             for i in range(self.table.rowCount()):
-                worker = RunCalc(self.table.item(i, 0).text(), i)
+                worker = RunCalc(self.table.item(i, 1).text(), i)
                 self.logViewer.append(f"Начинаем формировать отчет {self.table.item(i, 0).text()}")
                 worker.finished.connect(self.update_table)
                 worker.finished.connect(self.check_all_workers_finished)
@@ -152,15 +154,14 @@ class MainWindow(QWidget):
 
         self.logViewer.append(f"Данные посчитаны {self.table.item(row_num, 0).text()}")
 
-        self.table.setItem(row_num, 1, QTableWidgetItem(row_count))
-        self.table.setItem(row_num, 2, QTableWidgetItem(sum_all))
+        self.table.setItem(row_num, 2, QTableWidgetItem(row_count))
+        self.table.setItem(row_num, 3, QTableWidgetItem(sum_all))
 
     def check_all_workers_finished(self, row_num, row_count, sum_all):
         self.workers = [worker for worker in self.workers if worker.isRunning()]
         if len(self.workers) == 0:
             if row_count == "":
                 return
-            QMessageBox.information(self, 'Завершение', 'Все задачи завершены')
             self.evaluate_cases.setDisabled(False)
             if self.checkbox.isChecked():
                 self.logViewer.append(f"Сохранение необработанных строк")
@@ -174,17 +175,19 @@ class MainWindow(QWidget):
         self.save_rest = []
         self.logViewer.append(f"Необработанных строки сохранены")
 
-    def addRow(self, case):
+    def addRow(self, case, name):
         rowCount = self.table.rowCount()
         self.table.insertRow(rowCount)
-        self.table.setItem(rowCount, 0, QTableWidgetItem(f"{case}"))
-        self.table.setItem(rowCount, 1, QTableWidgetItem(f"x"))
+        self.table.setItem(rowCount, 0, QTableWidgetItem(f"{name}"))
+        self.table.setItem(rowCount, 1, QTableWidgetItem(f"{case}"))
         self.table.setItem(rowCount, 2, QTableWidgetItem(f"x"))
+        self.table.setItem(rowCount, 3, QTableWidgetItem(f"x"))
 
     def checkDownload(self):
         row_count, _, _ = run("")
         if row_count == 0:
             self.logViewer.append(f"Файл загружен")
+            self.evaluate_cases.setDisabled(False)
             self.fileLoaded = True
             self.timer.stop()
             

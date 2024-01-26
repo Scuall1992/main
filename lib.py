@@ -3,22 +3,31 @@ import os
 
 FOLDER = "cases"
 OUTPUT = "result"
+NUM_FORMAT = "#,##0"
+RUB_FORMAT = '#,##0.00 ₽'
 
 import json
 import pandas as pd
 from dataclasses import dataclass
 import threading
 
-def subtract_df(df_original, df_subset):
-    # переписать с ключом первых 20-ти колонок
+def subtract_df(df1, df2):
+    COUNT_COL = 12
 
-    merged_df = pd.merge(df_original, df_subset, how='outer', indicator=True)
+    if df1.shape[1] < COUNT_COL or df2.shape[1] < COUNT_COL:
+        raise ValueError("DataFrames should have at least COUNT_COL columns")
 
-    df_result = merged_df[merged_df['_merge'] == 'left_only'].drop(columns=['_merge'])
+    df1['temp_key'] = df1.iloc[:, :COUNT_COL].astype(str).apply(lambda x: '_'.join(x), axis=1)
+    df2['temp_key'] = df2.iloc[:, :COUNT_COL].astype(str).apply(lambda x: '_'.join(x), axis=1)
 
-    df_result = df_result[df_original.columns]
+    df1 = df1.drop_duplicates(subset='temp_key')
+    df2 = df2.drop_duplicates(subset='temp_key')
 
-    return df_result
+    merged_df = pd.merge(df1, df2[['temp_key']], on='temp_key', how='left', indicator=True)
+
+    filtered_df = merged_df[merged_df['_merge'] == 'left_only'].drop(columns=['_merge', 'temp_key'])
+
+    return filtered_df
 
 
 
@@ -64,8 +73,8 @@ def parse_filename(name: str) -> Data:
     d = name.split(",")
 
     name = d[0].replace("name=", "")
-    track = int(d[1].replace("track=", ""))
-    license = int(d[2].replace("license=", ""))
+    license = int(d[1].replace("license=", ""))
+    track = int(d[2].replace("track=", ""))
 
     return Data(license=license, track=track, name=name)
 
@@ -91,7 +100,7 @@ def save_rest_df():
     if not result:
         return 
 
-    subtract_df(result[0], pd.concat(all_case_dfs)).to_excel("not_measured.xlsx", index=False)
+    subtract_df(result[0], pd.concat(all_case_dfs)).to_excel("невошедшее.xlsx", index=False)
 
 
 
@@ -99,20 +108,20 @@ def get_percent(data: Data):
     return ((data.license*data.track)/10000)
 
 
-def change_data_in_columns(df, percent, license):
-    a = 18
-    b = 19
-    c = 21
-    d = 22
-    e = 20
-    f = 23
+def change_data_in_columns(df, a, b):
+    сумма_средств_1 = 18
+    сумма_средств_2 = 19
+    вознаграждение_1 = 21
+    вознаграждение_2 = 22
+    доля_лицензиара = 20
+    итого_вознаграждения = 23
 
-    df.iloc[:, a] = df.iloc[:, c]
-    df.iloc[:, b] = df.iloc[:, d]
-    df.iloc[:, f] = (df.iloc[:, c] + df.iloc[:, d]) * (percent * license) / 10000
-    df.iloc[:, c] = df.iloc[:, c] * (percent * license) / 10000
-    df.iloc[:, d] = df.iloc[:, d] * (percent * license) / 10000
-    df.iloc[:, e] = f"{percent}%"
+    df.iloc[:, сумма_средств_1] = df.iloc[:, вознаграждение_1]
+    df.iloc[:, сумма_средств_2] = df.iloc[:, вознаграждение_2]
+    df.iloc[:, итого_вознаграждения] = (df.iloc[:, вознаграждение_1] + df.iloc[:, вознаграждение_2]) * (a * b) / 10000
+    df.iloc[:, вознаграждение_1] = df.iloc[:, вознаграждение_1] * (a * b) / 10000
+    df.iloc[:, вознаграждение_2] = df.iloc[:, вознаграждение_2] * (a * b) / 10000
+    df.iloc[:, доля_лицензиара] = f"{a}%"
 
 
     return df
@@ -191,7 +200,12 @@ def run(case):
     if not os.path.exists(OUTPUT):
         os.mkdir(OUTPUT)
 
-    excel_filepath = os.path.join(OUTPUT, f"{case}.xlsx", )
+    if "" in case:
+        case_name = case.split(',')[0].replace("name=","").replace("cases\\", "")
+        excel_filepath = os.path.join(OUTPUT, f"{case_name}.xlsx", )
+    else:
+        excel_filepath = os.path.join(OUTPUT, f"{case}.xlsx", )
+
 
     res_df = res_df.drop(res_df.columns[-1], axis=1)
     res_df = res_df.drop(res_df.columns[0], axis=1)
@@ -226,7 +240,6 @@ def run(case):
 
     workbook = openpyxl.load_workbook(excel_filepath)
 
-    alignment = Alignment(wrap_text=False, shrink_to_fit=True, horizontal='left')
     bold_font = Font(bold=True)
 
     for sheet_name in workbook.sheetnames:
@@ -237,12 +250,16 @@ def run(case):
                             bottom=Side(style='thin'))
 
         if sheet_name == "Сводный отчёт":
-            for row in workbook[sheet_name].iter_rows(min_row=1, max_row=workbook[sheet_name].max_row, min_col=1, max_col=workbook[sheet_name].max_column):
+            for row in workbook[sheet_name].iter_rows(
+                min_row=1, 
+                max_row=workbook[sheet_name].max_row, 
+                min_col=1, 
+                max_col=workbook[sheet_name].max_column
+            ):
                 for cell in row:
                     if row.index == workbook[sheet_name].max_row - 1:
                         cell.font = bold_font
                     cell.border = thin_border
-                    cell.alignment = alignment
 
         cols_to_format = ['L', 'M']
 
@@ -251,32 +268,30 @@ def run(case):
                 cell.number_format = numbers.FORMAT_PERCENTAGE_00
 
         cols_to_format_rub = ['R', 'S', 'U', 'V', 'W']
-        currency_format = '#,##0.00 ₽'
 
         for col in cols_to_format_rub:
             for cell in workbook[sheet_name][col]:
-                cell.number_format = currency_format
+                cell.number_format = RUB_FORMAT
 
         for cell in workbook[sheet_name]['Q']:
-            cell.number_format = "#,##0"
+            cell.number_format = NUM_FORMAT
 
         if sheet_name == "Детализированный отчёт":
             last_row = workbook[sheet_name].max_row
 
             for cell in workbook[sheet_name][last_row]:
                 if cell.column_letter != 'Q':
-                    cell.number_format = currency_format
+                    cell.number_format = RUB_FORMAT
         else:
             last_row = workbook[sheet_name].max_row
-            currency_format = '#,##0.00 ₽'
 
             workbook[sheet_name][last_row][0].value = "Итого: "
-            workbook[sheet_name][last_row][1].number_format = "#,##0"
-            workbook[sheet_name][last_row][2].number_format = currency_format
+            workbook[sheet_name][last_row][1].number_format = NUM_FORMAT
+            workbook[sheet_name][last_row][2].number_format = RUB_FORMAT
 
             for i in range(1, workbook[sheet_name].max_row):
-                workbook[sheet_name][i][1].number_format = "#,##0"
-                workbook[sheet_name][i][2].number_format = currency_format
+                workbook[sheet_name][i][1].number_format = NUM_FORMAT
+                workbook[sheet_name][i][2].number_format = RUB_FORMAT
 
     workbook.save(excel_filepath)
 

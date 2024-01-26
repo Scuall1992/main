@@ -1,3 +1,0 @@
-(
-    "Копирайт" == "Pancher Distribution / GROMCHE.FUN"
-)
