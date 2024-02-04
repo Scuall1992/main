@@ -1,6 +1,10 @@
 import re
 import os
 
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
+
 FOLDER = "cases"
 OUTPUT = "result"
 NUM_FORMAT = "#,##0"
@@ -62,6 +66,13 @@ def calc_sum(df):
     return round(res, 2)
 
 
+def calc_sum_before(df):
+    res = 0
+    for index, row in df.iterrows():
+        res += (row.iloc[c["Сумма_1"]] + row.iloc[c["Сумма_2"]])
+    return round(res, 2)
+
+
 @dataclass
 class Data:
     license: int
@@ -81,13 +92,21 @@ def parse_filename(name: str) -> Data:
 with open("config.json", "r", encoding="utf-8") as f:
     c = json.loads(f.read())
 
+
+report_name = c["filename"].split('.')[0]
+
+import numpy as np 
 def read_df(c, result):
     df_orig = pd.read_excel(c["filename"], header=c["header_index_from_zero"])
 
     col_count = len(df_orig.columns)
     if  col_count > c["col_count"]:
         df_orig = df_orig.iloc[:, :c["col_count"]-col_count]
+
+    df_orig["UPC альбома"] = df_orig["UPC альбома"].replace(np.nan, 0).astype('longlong').astype(str)
     result.append(df_orig)
+
+    print(df_orig["UPC альбома"])
 
 result = []
 threading.Thread(target=read_df, args=(c,result), daemon=True).start()
@@ -155,7 +174,7 @@ def run(case):
         all_case_dfs.append(df)
 
         sum_all += calc_sum(df)
-        sum_after += sum_all * get_percent(data)
+        sum_after += calc_sum_before(df)
     else:
         for subcase in os.listdir(case_path):
             r = 0
@@ -169,11 +188,9 @@ def run(case):
             case_dfs.append(df)
             all_case_dfs.append(df)
 
-            r = calc_sum(df)
-            sum_all += r
+            sum_all += calc_sum(df)
 
-            r *= get_percent(data)
-            sum_after += r
+            sum_after += calc_sum_before(df)
         data.name = case
 
     res_df = pd.concat(case_dfs).drop_duplicates()
@@ -202,9 +219,9 @@ def run(case):
 
     if "" in case:
         case_name = case.split(',')[0].replace("name=","").replace("cases\\", "")
-        excel_filepath = os.path.join(OUTPUT, f"{case_name}.xlsx", )
+        excel_filepath = os.path.join(OUTPUT, f"{case_name} {report_name}.xlsx", )
     else:
-        excel_filepath = os.path.join(OUTPUT, f"{case}.xlsx", )
+        excel_filepath = os.path.join(OUTPUT, f"{case} {report_name}.xlsx", )
 
 
     res_df = res_df.drop(res_df.columns[-1], axis=1)
@@ -295,4 +312,4 @@ def run(case):
 
     workbook.save(excel_filepath)
 
-    return len(res_df), round(sum_all, 2)
+    return len(res_df), round(sum_after, 2), round(sum_all, 2)

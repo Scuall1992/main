@@ -38,7 +38,7 @@ class SaveRest(QThread):
 
 
 class RunCalc(QThread):
-    finished = pyqtSignal(int, str, str)
+    finished = pyqtSignal(int, str, str, str)
 
     def __init__(self, text, row_num):
         super().__init__()
@@ -46,12 +46,12 @@ class RunCalc(QThread):
         self.row_num = row_num
 
     def run(self):
-        row_count, sum_all = run(self.text)
-        if all(k is not None for k in [row_count, sum_all]):
-            self.finished.emit(self.row_num, str(row_count), str(sum_all))
+        row_count, sum_track, sum_all = run(self.text)
+        if all(k is not None for k in [row_count, sum_track, sum_all]):
+            self.finished.emit(self.row_num, str(row_count), str(sum_track), str(sum_all))
         else:
-            self.finished.emit(self.row_num, None, None)
-            
+            self.finished.emit(self.row_num, None, None, None)
+
     def stop(self):
         self.quit()  # Останавливает цикл событий потока
         self.wait()  # Дожидается завершения потока
@@ -80,8 +80,8 @@ class MainWindow(QWidget):
         self.check_windows = []
         self.resize(1200, 800)
         # имя контрагента, кол-во строк в екселе, сумма до процента, сумма после процента
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Имя контрагента", "Путь к вычислениям", "Количество строк", "Сумма итоговых выплат"])
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(["Имя контрагента", "Путь к вычислениям", "Количество строк", "Получено по контрагенту", "Сумма итоговых выплат"])
 
         from pathlib import Path
 
@@ -131,9 +131,9 @@ class MainWindow(QWidget):
         
         self.active_workers = 0
         if self.table.selectedItems():
-            for item in self.table.selectedItems():
-                worker = RunCalc(self.table.item(int(item.row()), 1).text(), int(item.row()))
-                self.logViewer.append(f"Начинаем формировать отчет {self.table.item(int(item.row()), 0).text()}")
+            for it in set([int(item.row()) for item in self.table.selectedItems()]):
+                worker = RunCalc(self.table.item(it, 1).text(), it)
+                self.logViewer.append(f"Начинаем формировать отчет {self.table.item(it, 0).text()}")
                 worker.finished.connect(self.update_table)
                 worker.finished.connect(self.check_all_workers_finished)
                 self.workers.append(worker)
@@ -148,14 +148,29 @@ class MainWindow(QWidget):
                 self.workers.append(worker)
                 worker.start()
 
-    def update_table(self, row_num, row_count, sum_all):
+    def calc_result(self, columnIndex):
+        s = 0
+
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, columnIndex)
+            if item and item.text() != 'x':
+                s += float(item.text())
+
+        return round(s, 2)
+
+
+
+    def update_table(self, row_num, row_count, sum_track, sum_all):
         if row_count == "":
             return
 
         self.logViewer.append(f"Данные посчитаны {self.table.item(row_num, 0).text()}")
 
+
+
         self.table.setItem(row_num, 2, QTableWidgetItem(row_count))
-        self.table.setItem(row_num, 3, QTableWidgetItem(sum_all))
+        self.table.setItem(row_num, 3, QTableWidgetItem(sum_track))
+        self.table.setItem(row_num, 4, QTableWidgetItem(sum_all))
 
     def check_all_workers_finished(self, row_num, row_count, sum_all):
         self.workers = [worker for worker in self.workers if worker.isRunning()]
@@ -170,6 +185,12 @@ class MainWindow(QWidget):
                 save.finished.connect(self.save_finish)
                 self.save_rest.append(save)
                 save.start()
+
+            res1 = self.calc_result(3)
+            res2 = self.calc_result(4)
+
+            self.logViewer.append(f"Итого по полученным от контрагента {res1}")
+            self.logViewer.append(f"Итого по сумме выплат {res2}")
     
     def save_finish(self):
         self.save_rest = []
@@ -182,6 +203,7 @@ class MainWindow(QWidget):
         self.table.setItem(rowCount, 1, QTableWidgetItem(f"{case}"))
         self.table.setItem(rowCount, 2, QTableWidgetItem(f"x"))
         self.table.setItem(rowCount, 3, QTableWidgetItem(f"x"))
+        self.table.setItem(rowCount, 4, QTableWidgetItem(f"x"))
 
     def checkDownload(self):
         row_count, _, _ = run("")
