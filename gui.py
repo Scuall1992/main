@@ -189,8 +189,10 @@ class MainWindow(QWidget):
             res1 = self.calc_result(3)
             res2 = self.calc_result(4)
 
-            self.logViewer.append(f"Итого по полученным от контрагента {res1}")
+            self.logViewer.append(f"--------------------------------------")
+            self.logViewer.append(f"Итого получено по контрагентам {res1}")
             self.logViewer.append(f"Итого по сумме выплат {res2}")
+            self.logViewer.append(f"****************************************")
     
     def save_finish(self):
         self.save_rest = []

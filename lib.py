@@ -106,7 +106,6 @@ def read_df(c, result):
     df_orig["UPC альбома"] = df_orig["UPC альбома"].replace(np.nan, 0).astype('longlong').astype(str)
     result.append(df_orig)
 
-    print(df_orig["UPC альбома"])
 
 result = []
 threading.Thread(target=read_df, args=(c,result), daemon=True).start()
@@ -168,13 +167,15 @@ def run(case):
             conditions = f.read()
         code_output = parse_conditions_to_code(conditions)
         data = parse_filename(case)
-        df = change_data_in_columns(eval(code_output), data.license, data.track)
+        df = eval(code_output)
+        sum_after += round(calc_sum_before(df)*data.license/100, 2)
+        df = change_data_in_columns(df, data.license, data.track)
 
         case_dfs.append(df)
         all_case_dfs.append(df)
 
         sum_all += calc_sum(df)
-        sum_after += calc_sum_before(df)
+        
     else:
         for subcase in os.listdir(case_path):
             r = 0
@@ -183,14 +184,16 @@ def run(case):
             code_output = parse_conditions_to_code(conditions)
             data = parse_filename(subcase)
 
-            df = change_data_in_columns(eval(code_output), data.license, data.track)
+            df = eval(code_output)
+            sum_after += round(calc_sum_before(df)*data.license/100, 2)
+
+            df = change_data_in_columns(df, data.license, data.track)
 
             case_dfs.append(df)
             all_case_dfs.append(df)
 
             sum_all += calc_sum(df)
-
-            sum_after += calc_sum_before(df)
+            
         data.name = case
 
     res_df = pd.concat(case_dfs).drop_duplicates()
