@@ -63,14 +63,14 @@ def calc_sum(df):
     res = 0
     for index, row in df.iterrows():
         res += (row.iloc[c["Вознаграждение_1"]] + row.iloc[c["Вознаграждение_2"]])
-    return round(res, 2)
+    return round(res, 4)
 
 
 def calc_sum_before(df):
     res = 0
     for index, row in df.iterrows():
         res += (row.iloc[c["Сумма_1"]] + row.iloc[c["Сумма_2"]])
-    return round(res, 2)
+    return round(res, 4)
 
 
 @dataclass
@@ -93,7 +93,9 @@ with open("config.json", "r", encoding="utf-8") as f:
     c = json.loads(f.read())
 
 
-report_name = c["filename"].split('.')[0]
+
+report_name, _ = os.path.splitext(c["filename"])
+
 
 import numpy as np 
 def read_df(c, result):
@@ -103,7 +105,8 @@ def read_df(c, result):
     if  col_count > c["col_count"]:
         df_orig = df_orig.iloc[:, :c["col_count"]-col_count]
 
-    df_orig["UPC альбома"] = df_orig["UPC альбома"].replace(np.nan, 0).astype('longlong').astype(str)
+    df_orig["UPC альбома"] = df_orig["UPC альбома"].replace(np.nan, 0).astype('longlong').astype(str).replace('0', '')
+
     result.append(df_orig)
 
 
@@ -168,12 +171,12 @@ def run(case):
         code_output = parse_conditions_to_code(conditions)
         data = parse_filename(case)
         df = eval(code_output)
-        sum_after += round(calc_sum_before(df)*data.license/100, 2)
         df = change_data_in_columns(df, data.license, data.track)
 
         case_dfs.append(df)
         all_case_dfs.append(df)
 
+        sum_after += round(calc_sum_before(df)*data.track/100, 4)
         sum_all += calc_sum(df)
         
     else:
@@ -185,12 +188,12 @@ def run(case):
             data = parse_filename(subcase)
 
             df = eval(code_output)
-            sum_after += round(calc_sum_before(df)*data.license/100, 2)
 
             df = change_data_in_columns(df, data.license, data.track)
 
             case_dfs.append(df)
             all_case_dfs.append(df)
+            sum_after += round(calc_sum_before(df)*data.track/100, 4)
 
             sum_all += calc_sum(df)
             
@@ -315,4 +318,4 @@ def run(case):
 
     workbook.save(excel_filepath)
 
-    return len(res_df), round(sum_after, 2), round(sum_all, 2)
+    return len(res_df), round(sum_after, 4), round(sum_all, 4)

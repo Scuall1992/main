@@ -169,8 +169,8 @@ class MainWindow(QWidget):
 
 
         self.table.setItem(row_num, 2, QTableWidgetItem(row_count))
-        self.table.setItem(row_num, 3, QTableWidgetItem(sum_track))
-        self.table.setItem(row_num, 4, QTableWidgetItem(sum_all))
+        self.table.setItem(row_num, 3, QTableWidgetItem(str(round(float(sum_track), 2))))
+        self.table.setItem(row_num, 4, QTableWidgetItem(str(round(float(sum_all), 2))))
 
     def check_all_workers_finished(self, row_num, row_count, sum_all):
         self.workers = [worker for worker in self.workers if worker.isRunning()]
