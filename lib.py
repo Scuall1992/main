@@ -229,8 +229,6 @@ def run(case):
     else:
         excel_filepath = os.path.join(OUTPUT, f"{case} {report_name}.xlsx", )
 
-
-    res_df = res_df.drop(res_df.columns[-1], axis=1)
     res_df = res_df.drop(res_df.columns[0], axis=1)
     res_df = res_df.reset_index(drop=True)
     res_df.to_excel(excel_filepath, index=False, sheet_name="Детализированный отчёт")
